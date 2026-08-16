@@ -1,0 +1,25 @@
+{
+  "vault_version": "1.0.0",
+  "model": "MiniMax-M3",
+  "max_tokens": 4096,
+  "temperature": 0.3,
+  "inbox_dir": "inbox",
+  "notes_dir": "notes",
+  "sources_dir": "sources",
+  "claims_dir": "claims",
+  "indexes_dir": "indexes",
+  "canvas_dir": "canvas",
+  "logs_dir": "logs",
+  "retrieve": {
+    "top_k": 10,
+    "rerank": false
+  },
+  "lint": {
+    "warn_orphan_after_days": 30,
+    "warn_stale_source_after_days": 180
+  },
+  "obsidian": {
+    "daily_notes_format": "YYYY-MM-DD",
+    "default_location": "notes"
+  }
+}
