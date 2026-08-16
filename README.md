@@ -1,6 +1,6 @@
 # heuristichermes
 
-**Build an Obsidian knowledge base that becomes more useful every time you use it—powered by the Hermes model via the MiniMax API.**
+**Build an Obsidian knowledge base that becomes more useful every time you use it—powered by Hermes through pluggable MiniMax, Anthropic, OpenAI, or xAI providers.**
 
 Capture sources, create connected notes, retrieve grounded answers, and keep the vault healthy—without giving up ownership of your files.
 
@@ -10,7 +10,7 @@ Capture sources, create connected notes, retrieve grounded answers, and keep the
 
 [See the workflow](#from-source-to-living-knowledge) · [Quick start](#quick-start) · [Explore the skills](#skills) · [Installation guide](docs/install-guide.md)
 
-heuristichermes is a local-first knowledge system for the [Hermes](https://huggingface.co/NousResearch) family of models served through the [MiniMax API](https://platform.minimax.io/). It turns source material into linked, source-cited Obsidian pages; answers from the evidence already in the vault; and provides explicit workflows for research, retrieval, maintenance, and visual mapping.
+heuristichermes is a local-first knowledge system for the [Hermes](https://huggingface.co/NousResearch) family of workflows served through pluggable LLM providers including [MiniMax](https://platform.minimax.io/), Anthropic Claude, OpenAI GPT/Codex-compatible models, and xAI Grok. It turns source material into linked, source-cited Obsidian pages; answers from the evidence already in the vault; and provides explicit workflows for research, retrieval, maintenance, and visual mapping.
 
 Your vault remains a normal directory of Markdown files. Nothing is hidden in a plugin cache, locked in a cloud database, or silently uploaded to a model.
 
@@ -44,11 +44,11 @@ cd heuristichermes
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env` and add your MiniMax API key:
+Copy `.env.example` to `.env`, then add the API key for your chosen provider. If you do not specify a provider, Hermes defaults to MiniMax:
 
 ```bash
 cp .env.example .env
-# edit .env and set MINIMAX_API_KEY=your_key_here
+# edit .env and set HERMES_PROVIDER plus the matching API key
 ```
 
 ### 2. Initialise a vault
@@ -104,15 +104,22 @@ Full skill contracts live in each `skills/<name>/SKILL.md`.
 
 ## Configuration
 
-The vault configuration is stored in `.hermes.json` at the vault root. See `config/defaults.json` for all available options and their defaults.
+The vault configuration is stored in `.hermes.json` at the vault root. See `config/defaults.json` for all available options and their defaults, including `llm.default_provider` and provider-specific model/base URL settings under `llm.providers`.
 
 Environment variables (or `.env` file):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MINIMAX_API_KEY` | *(required)* | Your MiniMax API key |
-| `MINIMAX_BASE_URL` | `https://api.minimax.io/v1` | API base URL |
-| `HERMES_MODEL` | `MiniMax-M3` | Chat completions model to use |
+| `HERMES_PROVIDER` | `minimax` | Default LLM provider (`minimax`, `anthropic`, `openai`, or `xai`) |
+| `HERMES_MODEL` | Provider-specific config default | Optional model override for the selected provider |
+| `MINIMAX_API_KEY` | *(required for MiniMax)* | Your MiniMax API key |
+| `ANTHROPIC_API_KEY` | *(required for Anthropic)* | Your Anthropic API key |
+| `OPENAI_API_KEY` | *(required for OpenAI)* | Your OpenAI API key |
+| `XAI_API_KEY` | *(required for xAI)* | Your xAI API key |
+| `MINIMAX_BASE_URL` | `https://api.minimax.io/v1` | Optional MiniMax-compatible API base URL |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com/v1` | Optional Anthropic API base URL |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Optional OpenAI API base URL |
+| `XAI_BASE_URL` | `https://api.x.ai/v1` | Optional xAI API base URL |
 | `HERMES_VAULT` | *(unset)* | Absolute path to the default vault |
 
 ## Architecture
@@ -120,7 +127,8 @@ Environment variables (or `.env` file):
 ```
 heuristichermes/
 ├── scripts/
-│   └── hermes.py          # CLI entry point
+│   ├── hermes.py          # CLI entry point
+│   └── providers.py       # Provider-agnostic LLM request layer
 ├── skills/
 │   ├── init/SKILL.md
 │   ├── ingest/SKILL.md

@@ -6,6 +6,8 @@ Get up and running with heuristichermes in five minutes.
 
 Ensure you have completed [installation](install-guide.md) and have a vault initialised.
 
+LLM-backed commands such as `ingest`, `query`, `save`, `fold`, and `think` accept optional `--provider` and `--model` overrides. If omitted, Hermes uses `HERMES_PROVIDER` or the vault's configured `llm.default_provider`, which defaults to `minimax`.
+
 ## Ingest your first source
 
 1. Copy or write a Markdown or plain-text file into the vault's `inbox/` directory.
@@ -28,6 +30,14 @@ Ask a question about what you've ingested:
 
 ```bash
 python scripts/hermes.py query "$HOME/Documents/MyKnowledgeVault" \
+  "What are the key ideas in my notes?"
+```
+
+Or override the provider for one call:
+
+```bash
+python scripts/hermes.py query --provider openai \
+  "$HOME/Documents/MyKnowledgeVault" \
   "What are the key ideas in my notes?"
 ```
 
@@ -80,5 +90,5 @@ python scripts/hermes.py fold "$HOME/Documents/MyKnowledgeVault"
 ## Next steps
 
 - Open the vault in Obsidian to explore the Graph view and Canvas files.
-- Customise `.hermes.json` to change the model, retrieval depth, or directory layout.
+- Customise `.hermes.json` to change the default provider, model, retrieval depth, or directory layout.
 - See each `skills/<name>/SKILL.md` for the full contract of each command.

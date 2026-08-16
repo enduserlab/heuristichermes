@@ -4,7 +4,7 @@
 
 - Python 3.10 or later
 - [Obsidian](https://obsidian.md/) (free download)
-- A [MiniMax API](https://platform.minimax.io/) account and API key
+- An API key for one supported provider: MiniMax, Anthropic, OpenAI, or xAI
 
 ## 1. Clone the repository
 
@@ -33,9 +33,10 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` and set your MiniMax API key:
+Edit `.env` and set the provider plus the matching API key. If you do not set a provider, Hermes defaults to MiniMax:
 
 ```
+HERMES_PROVIDER=minimax
 MINIMAX_API_KEY=your_key_here
 ```
 

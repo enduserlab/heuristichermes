@@ -1,6 +1,26 @@
 {
   "vault_version": "1.0.0",
-  "model": "MiniMax-M3",
+  "llm": {
+    "default_provider": "minimax",
+    "providers": {
+      "minimax": {
+        "model": "MiniMax-M3",
+        "base_url": "https://api.minimax.io/v1"
+      },
+      "anthropic": {
+        "model": "claude-3-5-sonnet-latest",
+        "base_url": "https://api.anthropic.com/v1"
+      },
+      "openai": {
+        "model": "gpt-4o-mini",
+        "base_url": "https://api.openai.com/v1"
+      },
+      "xai": {
+        "model": "grok-3-mini",
+        "base_url": "https://api.x.ai/v1"
+      }
+    }
+  },
   "max_tokens": 4096,
   "temperature": 0.3,
   "inbox_dir": "inbox",
