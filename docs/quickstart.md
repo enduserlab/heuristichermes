@@ -36,8 +36,8 @@ python scripts/hermes.py query "$HOME/Documents/MyKnowledgeVault" \
 Or override the provider for one call:
 
 ```bash
-python scripts/hermes.py query "$HOME/Documents/MyKnowledgeVault" \
-  --provider openai \
+python scripts/hermes.py query --provider openai \
+  "$HOME/Documents/MyKnowledgeVault" \
   "What are the key ideas in my notes?"
 ```
 

@@ -36,14 +36,11 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-try:
+if __package__ in {None, ""}:  # pragma: no cover - script execution path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
-except ImportError:  # pragma: no cover - supports importing as scripts.hermes in tests
-    from scripts.providers import (
-        SUPPORTED_PROVIDERS,
-        generate_response,
-        resolve_llm_settings,
-    )
+else:  # pragma: no cover - import path used by tests
+    from .providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
 
 load_dotenv()
 
