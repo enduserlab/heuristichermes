@@ -39,7 +39,7 @@ from rich.panel import Panel
 if __package__ in {None, ""}:  # pragma: no cover - script execution path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
-else:  # pragma: no cover - import path used by tests
+else:
     from .providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
 
 load_dotenv()

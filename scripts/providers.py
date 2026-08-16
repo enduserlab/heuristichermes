@@ -198,10 +198,9 @@ def _generate_anthropic_response(
         blocks = data["content"]
     except KeyError as exc:
         raise RuntimeError(f"Unexpected API response shape: {data}") from exc
-    text = _coerce_response_text(blocks, data)
-    if not text:
+    if not blocks:
         raise RuntimeError(f"Unexpected API response shape: {data}")
-    return text
+    return _coerce_response_text(blocks, data)
 
 
 def _coerce_response_text(content: Any, data: dict[str, Any]) -> str:
