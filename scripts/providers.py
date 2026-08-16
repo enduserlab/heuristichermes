@@ -93,7 +93,7 @@ def generate_response(
     resolved_api_key = api_key or os.environ.get(spec["api_key_env"], "")
     if not resolved_api_key:
         raise EnvironmentError(
-            f"{spec['api_key_env']} is not set.  "
+            f"{spec['api_key_env']} is not set. "
             "Copy .env.example to .env and add your key."
         )
     resolved_base_url = (

@@ -149,7 +149,7 @@ def _chat_completion(
         system_prompt=system_prompt,
         max_tokens=max_tokens,
         temperature=temperature,
-        base_url=llm_settings.get("base_url") or None,
+        base_url=llm_settings["base_url"],
     )
 
 
