@@ -92,7 +92,7 @@ def generate_response(
     spec = PROVIDER_SPECS[provider_name]
     resolved_api_key = api_key or os.environ.get(spec["api_key_env"], "")
     if not resolved_api_key:
-        raise EnvironmentError(
+        raise OSError(
             f"{spec['api_key_env']} is not set. "
             "Copy .env.example to .env and add your key."
         )

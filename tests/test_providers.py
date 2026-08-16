@@ -67,7 +67,7 @@ class ProviderConfigTests(unittest.TestCase):
         self.assertEqual(cfg["llm"]["default_provider"], "minimax")
         self.assertEqual(cfg["llm"]["providers"]["minimax"]["model"], "MiniMax-M2")
 
-    @patch.dict("os.environ", {"OPENAI_BASE_URL": "https://override.example/v1"}, clear=True)
+    @patch.dict("os.environ", {"OPENAI_BASE_URL": "https://override.example/v1"})
     def test_resolve_llm_settings_prefers_base_url_environment_override(self) -> None:
         cfg = {
             "llm": {
@@ -87,7 +87,7 @@ class ProviderConfigTests(unittest.TestCase):
 
 
 class ProviderRequestTests(unittest.TestCase):
-    @patch.dict("os.environ", {"MINIMAX_API_KEY": "minimax-key"}, clear=True)
+    @patch.dict("os.environ", {"MINIMAX_API_KEY": "minimax-key"})
     @patch("scripts.providers.requests.post")
     def test_generate_response_uses_openai_compatible_payload(
         self,
@@ -121,7 +121,7 @@ class ProviderRequestTests(unittest.TestCase):
             )
         )
 
-    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "anthropic-key"}, clear=True)
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "anthropic-key"})
     @patch("scripts.providers.requests.post")
     def test_generate_response_uses_anthropic_messages_api(
         self,
