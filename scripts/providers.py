@@ -66,6 +66,7 @@ def resolve_llm_settings(
         "base_url": (
             os.environ.get(provider_spec["base_url_env"])
             or provider_cfg.get("base_url", "")
+            or provider_spec["default_base_url"]
         ),
     }
 

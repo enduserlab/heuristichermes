@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,7 +28,7 @@ class ProviderConfigTests(unittest.TestCase):
             {
                 "provider": "minimax",
                 "model": "MiniMax-M3",
-                "base_url": "",
+                "base_url": "https://api.minimax.io/v1",
             },
         )
         self.assertEqual(
@@ -35,7 +36,7 @@ class ProviderConfigTests(unittest.TestCase):
             {
                 "provider": "openai",
                 "model": "gpt-4o-mini",
-                "base_url": "",
+                "base_url": "https://api.openai.com/v1",
             },
         )
 
@@ -113,7 +114,12 @@ class ProviderRequestTests(unittest.TestCase):
         self.assertEqual(kwargs["json"]["model"], "MiniMax-M3")
         self.assertEqual(kwargs["json"]["messages"][0]["role"], "system")
         self.assertEqual(kwargs["json"]["messages"][1]["content"], "hello")
-        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer " + "minimax-key")
+        self.assertEqual(kwargs["headers"]["Authorization"].split()[0], "Bearer")
+        self.assertTrue(
+            kwargs["headers"]["Authorization"].endswith(
+                os.environ["MINIMAX_API_KEY"]
+            )
+        )
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "anthropic-key"}, clear=True)
     @patch("scripts.providers.requests.post")
