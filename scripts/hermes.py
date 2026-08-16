@@ -2,9 +2,9 @@
 """
 hermes.py – heuristichermes CLI
 
-Local-first Obsidian knowledge system powered by the Hermes model via the
-MiniMax API.  Vault operations: init, ingest, query, save, lint, retrieve,
-fold, think.
+Local-first Obsidian knowledge system powered by Hermes-compatible LLM
+providers. Vault operations: init, ingest, query, save, lint, retrieve, fold,
+think.
 
 Usage:
     python scripts/hermes.py init <vault_path> [--apply --approved-plan-sha256 <sha>]
@@ -25,38 +25,33 @@ import os
 import sys
 import textwrap
 import time
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import click
-import requests
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+try:
+    from providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
+except ImportError:  # pragma: no cover - supports importing as scripts.hermes in tests
+    from scripts.providers import (
+        SUPPORTED_PROVIDERS,
+        generate_response,
+        resolve_llm_settings,
+    )
+
 load_dotenv()
 
 console = Console()
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "defaults.json"
 VAULT_CONFIG_FILE = ".hermes.json"
 VAULT_LOG_FILE = "logs/operations.jsonl"
-SUPPORTED_MODELS = {
-    "MiniMax-M3",
-    "MiniMax-M2.7",
-    "MiniMax-M2.7-highspeed",
-    "MiniMax-M2.5",
-    "MiniMax-M2.5-highspeed",
-    "MiniMax-M2.1",
-    "MiniMax-M2.1-highspeed",
-    "MiniMax-M2",
-}
 INGEST_EXTENSIONS = {".md", ".txt", ".pdf"}
 
 
@@ -67,7 +62,7 @@ INGEST_EXTENSIONS = {".md", ".txt", ".pdf"}
 
 def load_defaults() -> dict[str, Any]:
     with DEFAULT_CONFIG_PATH.open() as fh:
-        return json.load(fh)
+        return _normalise_config(json.load(fh))
 
 
 def load_vault_config(vault: Path) -> dict[str, Any]:
@@ -76,8 +71,8 @@ def load_vault_config(vault: Path) -> dict[str, Any]:
     if cfg_path.exists():
         with cfg_path.open() as fh:
             overrides = json.load(fh)
-        defaults.update(overrides)
-    return defaults
+        defaults = _deep_merge(defaults, overrides)
+    return _normalise_config(defaults)
 
 
 def save_vault_config(vault: Path, cfg: dict[str, Any]) -> None:
@@ -86,74 +81,79 @@ def save_vault_config(vault: Path, cfg: dict[str, Any]) -> None:
         json.dump(cfg, fh, indent=2)
 
 
-# ---------------------------------------------------------------------------
-# MiniMax API client
-# ---------------------------------------------------------------------------
+def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
-class MinimaxClient:
-    """Thin wrapper around the MiniMax OpenAI-compatible chat completions API."""
+def _normalise_config(cfg: dict[str, Any]) -> dict[str, Any]:
+    normalised = deepcopy(cfg)
+    llm_cfg = normalised.setdefault("llm", {})
+    default_provider = (
+        llm_cfg.get("default_provider")
+        or normalised.get("provider")
+        or "minimax"
+    )
+    llm_cfg["default_provider"] = str(default_provider).lower()
+    provider_map = llm_cfg.setdefault("providers", {})
+    legacy_model = normalised.get("model")
+    if legacy_model:
+        legacy_provider = llm_cfg["default_provider"]
+        provider_map.setdefault(legacy_provider, {})
+        provider_map[legacy_provider]["model"] = legacy_model
+    return normalised
 
-    def __init__(
-        self,
-        api_key: str | None = None,
-        base_url: str | None = None,
-        model: str | None = None,
-    ) -> None:
-        self.api_key = api_key or os.environ.get("MINIMAX_API_KEY", "")
-        if not self.api_key:
-            raise EnvironmentError(
-                "MINIMAX_API_KEY is not set.  "
-                "Copy .env.example to .env and add your key."
-            )
-        self.base_url = (
-            base_url
-            or os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.io/v1")
-        ).rstrip("/")
-        self.model = (
-            model
-            or os.environ.get("HERMES_MODEL", "MiniMax-M3")
-        )
-        if self.model not in SUPPORTED_MODELS:
-            console.print(
-                f"[yellow]Warning:[/yellow] model '{self.model}' is not in the "
-                f"known supported list: {', '.join(sorted(SUPPORTED_MODELS))}"
-            )
 
-    def chat(
-        self,
-        system: str,
-        user: str,
-        *,
-        max_tokens: int = 4096,
-        temperature: float = 0.3,
-    ) -> str:
-        """Return the assistant reply text for a single-turn conversation."""
-        headers = {
-            "Authorization": "Bearer " + self.api_key,
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-        resp = requests.post(
-            f"{self.base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=120,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        try:
-            return data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as exc:
-            raise RuntimeError(f"Unexpected API response shape: {data}") from exc
+def _llm_option_defaults_help() -> str:
+    return "Defaults to environment variables or the vault config."
+
+
+def _llm_options(func: Any) -> Any:
+    func = click.option(
+        "--model",
+        "model_override",
+        default=None,
+        help=f"Override the configured model. {_llm_option_defaults_help()}",
+    )(func)
+    func = click.option(
+        "--provider",
+        "provider_override",
+        type=click.Choice(SUPPORTED_PROVIDERS, case_sensitive=False),
+        default=None,
+        help=f"Override the configured provider. {_llm_option_defaults_help()}",
+    )(func)
+    return func
+
+
+def _chat_completion(
+    cfg: dict[str, Any],
+    *,
+    prompt: str,
+    system_prompt: str | None = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.3,
+    provider_override: str | None = None,
+    model_override: str | None = None,
+) -> str:
+    llm_settings = resolve_llm_settings(
+        cfg,
+        provider=provider_override,
+        model=model_override,
+    )
+    return generate_response(
+        provider=llm_settings["provider"],
+        model=llm_settings["model"],
+        prompt=prompt,
+        system_prompt=system_prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        base_url=llm_settings.get("base_url") or None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +326,7 @@ def _apply_init(plan: dict[str, Any]) -> None:
 
 @click.group()
 def cli() -> None:
-    """heuristichermes – Obsidian knowledge system powered by Hermes/MiniMax."""
+    """heuristichermes – Obsidian knowledge system with pluggable LLM providers."""
 
 
 @cli.command()
@@ -368,12 +368,16 @@ def init(vault_path: str, apply: bool, approved_plan_sha256: str) -> None:
 
 @cli.command()
 @click.argument("vault_path", required=False)
-def ingest(vault_path: str | None) -> None:
+@_llm_options
+def ingest(
+    vault_path: str | None,
+    provider_override: str | None,
+    model_override: str | None,
+) -> None:
     """Ingest source files from the vault inbox."""
     vault = _select_vault(vault_path)
     _require_vault(vault)
     cfg = load_vault_config(vault)
-    client = MinimaxClient(model=cfg.get("model"))
 
     files = _build_inbox_index(vault, cfg)
     if not files:
@@ -411,11 +415,14 @@ def ingest(vault_path: str | None) -> None:
             f"---\n{raw_text[:8000]}\n---\n\n"
             "Return only the Markdown note."
         )
-        note_md = client.chat(
-            system_prompt,
-            user_prompt,
+        note_md = _chat_completion(
+            cfg,
+            system_prompt=system_prompt,
+            prompt=user_prompt,
             max_tokens=cfg.get("max_tokens", 4096),
             temperature=cfg.get("temperature", 0.3),
+            provider_override=provider_override,
+            model_override=model_override,
         )
 
         # Derive a title and save
@@ -453,12 +460,17 @@ def ingest(vault_path: str | None) -> None:
 @cli.command()
 @click.argument("vault_path", required=False)
 @click.argument("question")
-def query(vault_path: str | None, question: str) -> None:
+@_llm_options
+def query(
+    vault_path: str | None,
+    question: str,
+    provider_override: str | None,
+    model_override: str | None,
+) -> None:
     """Answer QUESTION from vault evidence (read-only)."""
     vault = _select_vault(vault_path)
     _require_vault(vault)
     cfg = load_vault_config(vault)
-    client = MinimaxClient(model=cfg.get("model"))
 
     notes_dir = vault / cfg["notes_dir"]
     notes = sorted(notes_dir.glob("**/*.md")) if notes_dir.exists() else []
@@ -493,11 +505,14 @@ def query(vault_path: str | None, question: str) -> None:
     """)
     user_prompt = f"Question: {question}\n\nVault evidence:\n\n{context}"
 
-    answer = client.chat(
-        system_prompt,
-        user_prompt,
+    answer = _chat_completion(
+        cfg,
+        system_prompt=system_prompt,
+        prompt=user_prompt,
         max_tokens=cfg.get("max_tokens", 4096),
         temperature=0.2,
+        provider_override=provider_override,
+        model_override=model_override,
     )
     console.print(Markdown(answer))
     _log_operation(
@@ -515,12 +530,18 @@ def query(vault_path: str | None, question: str) -> None:
 @click.argument("vault_path", required=False)
 @click.argument("insight")
 @click.option("--title", default="", help="Note title (default: derived from insight).")
-def save(vault_path: str | None, insight: str, title: str) -> None:
+@_llm_options
+def save(
+    vault_path: str | None,
+    insight: str,
+    title: str,
+    provider_override: str | None,
+    model_override: str | None,
+) -> None:
     """Save a single scoped insight as a new note."""
     vault = _select_vault(vault_path)
     _require_vault(vault)
     cfg = load_vault_config(vault)
-    client = MinimaxClient(model=cfg.get("model"))
 
     system_prompt = textwrap.dedent("""\
         You are Hermes, a knowledge assistant.
@@ -532,11 +553,14 @@ def save(vault_path: str | None, insight: str, title: str) -> None:
     title_hint = f" Use the title: {title!r}." if title else ""
     user_prompt = f"Insight: {insight}{title_hint}\n\nReturn only the Markdown note."
 
-    note_md = client.chat(
-        system_prompt,
-        user_prompt,
+    note_md = _chat_completion(
+        cfg,
+        system_prompt=system_prompt,
+        prompt=user_prompt,
         max_tokens=1024,
         temperature=0.3,
+        provider_override=provider_override,
+        model_override=model_override,
     )
 
     if not title:
@@ -652,12 +676,16 @@ def retrieve(vault_path: str | None, query_text: str, top_k: int) -> None:
 
 @cli.command()
 @click.argument("vault_path", required=False)
-def fold(vault_path: str | None) -> None:
+@_llm_options
+def fold(
+    vault_path: str | None,
+    provider_override: str | None,
+    model_override: str | None,
+) -> None:
     """Produce an extractive rollup of the operation log."""
     vault = _select_vault(vault_path)
     _require_vault(vault)
     cfg = load_vault_config(vault)
-    client = MinimaxClient(model=cfg.get("model"))
 
     log_path = vault / VAULT_LOG_FILE
     if not log_path.exists():
@@ -684,11 +712,14 @@ def fold(vault_path: str | None) -> None:
         Include: total operations by type, date range, notable activity, and any anomalies.
         Use plain Markdown.
     """)
-    rollup = client.chat(
-        system_prompt,
-        f"Operation log:\n\n{summary_data}",
+    rollup = _chat_completion(
+        cfg,
+        system_prompt=system_prompt,
+        prompt=f"Operation log:\n\n{summary_data}",
         max_tokens=1024,
         temperature=0.2,
+        provider_override=provider_override,
+        model_override=model_override,
     )
     console.print(Markdown(rollup))
 
@@ -696,12 +727,17 @@ def fold(vault_path: str | None) -> None:
 @cli.command()
 @click.argument("vault_path", required=False)
 @click.argument("topic")
-def think(vault_path: str | None, topic: str) -> None:
+@_llm_options
+def think(
+    vault_path: str | None,
+    topic: str,
+    provider_override: str | None,
+    model_override: str | None,
+) -> None:
     """Structured observe–listen–connect–create–grow review loop for a topic."""
     vault = _select_vault(vault_path)
     _require_vault(vault)
     cfg = load_vault_config(vault)
-    client = MinimaxClient(model=cfg.get("model"))
 
     notes_dir = vault / cfg["notes_dir"]
     notes = sorted(notes_dir.glob("**/*.md")) if notes_dir.exists() else []
@@ -746,11 +782,14 @@ def think(vault_path: str | None, topic: str) -> None:
     """)
     user_prompt = f"Topic: {topic}\n\nVault evidence:\n\n{context}"
 
-    reflection = client.chat(
-        system_prompt,
-        user_prompt,
+    reflection = _chat_completion(
+        cfg,
+        system_prompt=system_prompt,
+        prompt=user_prompt,
         max_tokens=cfg.get("max_tokens", 4096),
         temperature=0.4,
+        provider_override=provider_override,
+        model_override=model_override,
     )
     console.print(Markdown(reflection))
     _log_operation(vault, {"op": "think", "ts": _now_iso(), "topic": topic})
