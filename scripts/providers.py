@@ -50,6 +50,7 @@ def resolve_llm_settings(
             f"Unsupported provider '{provider_name}'. "
             f"Supported providers: {', '.join(SUPPORTED_PROVIDERS)}"
         )
+    provider_spec = PROVIDER_SPECS[provider_name]
     provider_cfg = llm_cfg.get("providers", {}).get(provider_name, {})
     resolved_model = (
         model
@@ -62,7 +63,10 @@ def resolve_llm_settings(
     return {
         "provider": provider_name,
         "model": resolved_model,
-        "base_url": provider_cfg.get("base_url", ""),
+        "base_url": (
+            os.environ.get(provider_spec["base_url_env"])
+            or provider_cfg.get("base_url", "")
+        ),
     }
 
 

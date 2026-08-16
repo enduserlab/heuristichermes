@@ -66,6 +66,24 @@ class ProviderConfigTests(unittest.TestCase):
         self.assertEqual(cfg["llm"]["default_provider"], "minimax")
         self.assertEqual(cfg["llm"]["providers"]["minimax"]["model"], "MiniMax-M2")
 
+    @patch.dict("os.environ", {"OPENAI_BASE_URL": "https://override.example/v1"}, clear=True)
+    def test_resolve_llm_settings_prefers_base_url_environment_override(self) -> None:
+        cfg = {
+            "llm": {
+                "default_provider": "openai",
+                "providers": {
+                    "openai": {
+                        "model": "gpt-4o-mini",
+                        "base_url": "https://config.example/v1",
+                    }
+                },
+            }
+        }
+
+        resolved = resolve_llm_settings(cfg)
+
+        self.assertEqual(resolved["base_url"], "https://override.example/v1")
+
 
 class ProviderRequestTests(unittest.TestCase):
     @patch.dict("os.environ", {"MINIMAX_API_KEY": "minimax-key"}, clear=True)
