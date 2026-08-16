@@ -200,6 +200,11 @@ def _generate_anthropic_response(
         raise RuntimeError(f"Unexpected API response shape: {data}") from exc
     if not blocks:
         raise RuntimeError(f"Unexpected API response shape: {data}")
+    if not any(
+        isinstance(block, dict) and block.get("type") == "text" and block.get("text")
+        for block in blocks
+    ):
+        raise RuntimeError("Anthropic response did not include any text content.")
     return _coerce_response_text(blocks, data)
 
 

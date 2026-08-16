@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import sys
@@ -37,8 +38,18 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 if __package__ in {None, ""}:  # pragma: no cover - script execution path
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
+    providers_path = Path(__file__).resolve().with_name("providers.py")
+    providers_spec = importlib.util.spec_from_file_location(
+        "hermes_providers",
+        providers_path,
+    )
+    if providers_spec is None or providers_spec.loader is None:
+        raise ImportError(f"Unable to load provider module from {providers_path}")
+    providers_module = importlib.util.module_from_spec(providers_spec)
+    providers_spec.loader.exec_module(providers_module)
+    SUPPORTED_PROVIDERS = providers_module.SUPPORTED_PROVIDERS
+    generate_response = providers_module.generate_response
+    resolve_llm_settings = providers_module.resolve_llm_settings
 else:
     from .providers import SUPPORTED_PROVIDERS, generate_response, resolve_llm_settings
 
